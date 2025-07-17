@@ -1,36 +1,30 @@
 from flask import Flask, jsonify
-import undetected_chromedriver as uc
-from selenium.webdriver.common.by import By
-import time
+import browser_cookie3
+import json
 
 app = Flask(__name__)
 
+@app.route("/cookies")
 def get_youtube_cookies():
     try:
-        options = uc.ChromeOptions()
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        # Use existing user profile if you want persistent login
-        # options.add_argument("--user-data-dir=/home/youruser/.config/google-chrome")
+        # Load Chrome cookies only for YouTube domain
+        cj = browser_cookie3.chrome(domain_name="youtube.com")
 
-        driver = uc.Chrome(options=options)
-        driver.get("https://youtube.com")
+        cookies = []
+        for c in cj:
+            cookies.append({
+                "name": c.name,
+                "value": c.value,
+                "domain": c.domain,
+                "path": c.path,
+                "secure": c.secure,
+                "expires": c.expires
+            })
 
-        print("Waiting for YouTube to load...")
-        time.sleep(10)  # Give time to manually login if needed
-
-        cookies = driver.get_cookies()
-        driver.quit()
-
-        cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
-        return cookie_dict
+        return jsonify({"cookies": cookies})
 
     except Exception as e:
-        return {"error": str(e)}
+        return jsonify({"error": f"Failed to load cookies: {str(e)}"})
 
-@app.route('/cookies')
-def cookies():
-    return jsonify(get_youtube_cookies())
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
