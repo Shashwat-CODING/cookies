@@ -1,70 +1,36 @@
 from flask import Flask, jsonify
-import browser_cookie3
 import undetected_chromedriver as uc
+from selenium.webdriver.common.by import By
 import time
-import threading
-import datetime
 
 app = Flask(__name__)
 
-YOUTUBE_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"  # safe video for loading cookies
-
-def play_youtube_to_refresh_cookies():
+def get_youtube_cookies():
     try:
         options = uc.ChromeOptions()
-        options.add_argument("--headless=new")
-        options.add_argument("--disable-gpu")
         options.add_argument("--no-sandbox")
-        options.add_argument("--mute-audio")
-        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-dev-shm-usage")
+        # Use existing user profile if you want persistent login
+        # options.add_argument("--user-data-dir=/home/youruser/.config/google-chrome")
 
         driver = uc.Chrome(options=options)
-        driver.get(YOUTUBE_URL)
+        driver.get("https://youtube.com")
 
-        time.sleep(10)  # Let cookies get refreshed
+        print("Waiting for YouTube to load...")
+        time.sleep(10)  # Give time to manually login if needed
 
+        cookies = driver.get_cookies()
         driver.quit()
-        print("✅ Refreshed YouTube cookies.")
+
+        cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
+        return cookie_dict
+
     except Exception as e:
-        print(f"❌ Failed to refresh YouTube cookies: {e}")
+        return {"error": str(e)}
 
+@app.route('/cookies')
+def cookies():
+    return jsonify(get_youtube_cookies())
 
-def convert_cookie(cookie):
-    return {
-        "domain": cookie.domain,
-        "expirationDate": float(cookie.expires) if cookie.expires else None,
-        "hostOnly": not cookie.domain.startswith("."),
-        "httpOnly": cookie._rest.get("httpOnly", False),
-        "name": cookie.name,
-        "path": cookie.path,
-        "sameSite": "no_restriction",
-        "secure": cookie.secure,
-        "session": False if cookie.expires else True,
-        "storeId": "0",
-        "value": cookie.value
-    }
-
-@app.route("/cookies")
-def get_youtube_cookies():
-    # Step 1: Launch Chrome & play video in background (threaded)
-    thread = threading.Thread(target=play_youtube_to_refresh_cookies)
-    thread.start()
-    thread.join()
-
-    # Step 2: Extract cookies using browser_cookie3 (Chrome only)
-    try:
-        cj = browser_cookie3.chrome()
-    except Exception as e:
-        return jsonify({"error": f"Failed to load cookies: {str(e)}"}), 500
-
-    # Step 3: Filter YouTube cookies and format
-    cookies = []
-    for cookie in cj:
-        if "youtube.com" in cookie.domain:
-            cookies.append(convert_cookie(cookie))
-
-    return jsonify(cookies)
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
-
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
